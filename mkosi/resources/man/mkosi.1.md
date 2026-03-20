@@ -1032,7 +1032,7 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     added to the ESP partition or not.
 
 `Bootloader=`, `--bootloader=`
-:   Takes one of `none`, `systemd-boot`, `uki`, `grub`,
+:   Takes one of `none`, `systemd-boot`, `uki`, `uki-prebuilt`, `grub`,
     `systemd-boot-signed`, `uki-signed` or `grub-signed`. Defaults to
     `systemd-boot`. If set to `none`, no EFI bootloader will be installed
     into the image. If set to `systemd-boot`, **systemd-boot** will be
@@ -1050,6 +1050,12 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
     The `signed` variants will only install pre-signed EFI binaries
     shipped by the distribution.
+
+    If set to `uki_prebuilt`, **mkosi** copies a unified kernel image already
+    shipped by the distribution from `/usr/lib/modules/<version>/` (as `*.efi`)
+    to `EFI/BOOT/BOOT*.EFI` in the ESP and does not invoke `ukify` or require
+    systemd-stub. The highest kernel version is chosen; the first PE file in that
+    directory that identifies as a UKI is used.
 
     Kernels need to be placed into the root filesystem (for example using
     `ExtraTrees=`) under `/usr/lib/modules/$version`, named `vmlinux` or
@@ -1901,10 +1907,11 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
 
 `Firmware=`, `--firmware=`
 :   Configures the virtual machine firmware to use. Takes one of `uefi`,
-    `uefi-secure-boot`, `linux`, `linux-noinitrd` or `auto`.
+    `uefi-secure-boot`, `bios`, `linux`, `linux-noinitrd` or `auto`.
     Defaults to `auto`. When set to `uefi`, the OVMF firmware without
     secure boot support is used. When set to `uefi-secure-boot`, the
-    OVMF firmware with secure boot support is used. When set to `linux`, direct
+    OVMF firmware with secure boot support is used. When set to `bios`,
+    the default SeaBIOS firmware is used. When set to `linux`, direct
     kernel boot is used. See the `Linux=` option for more details on
     which kernel image is used with direct kernel boot.
     `linux-noinitrd` is identical to `linux` except that no initrd is
