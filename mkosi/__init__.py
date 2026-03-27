@@ -2249,22 +2249,45 @@ def install_kernel(context: Context, partitions: Sequence[Partition]) -> None:
 
     # uki_prebuilt: find the distro-shipped pre-built UKI and copy it to the ESP.
     if context.config.bootloader.is_prebuilt_uki():
-        # With shim, place the UKI at shim's second-stage slot (e.g. grubx64.EFI) so the
-        # boot chain is: shim (BOOTX64.EFI) → UKI (grubx64.EFI). Without shim, place it
-        # at the UEFI fallback path (BOOTX64.EFI) for direct firmware boot.
         if context.config.shim_bootloader != ShimBootloader.none:
-            boot_binary = context.root / shim_second_stage_binary(context)
+            # With shim: place the UKI at EFI/Linux/<kver>.efi and write BOOTX64.CSV so
+            # fallback.efi (at BOOTX64.EFI) can create an NVRAM entry pointing shim at the UKI.
+            # Boot chain: fallback.efi → reads CSV → NVRAM entry for shimx64.EFI with UKI
+            # as LoadOptions → shim loads EFI/Linux/<kver>.efi directly.
+            arch = context.config.architecture.to_efi()
+            assert arch
+            uki_dir = context.root / "efi" / "EFI" / "Linux"
+            with umask(~0o700):
+                uki_dir.mkdir(parents=True, exist_ok=True)
+            for kver, kimg in gen_kernel_images(context):
+                uki_dst = uki_dir / f"{kver}.efi"
+                log_step(f"Installing prebuilt distro UKI {kimg} to {uki_dst}")
+                copyfile2(kimg, uki_dst)
+                # Write BOOTX64.CSV in shim's directory (EFI/BOOT/) as UCS-2 LE.
+                # fallback.efi scans for this file, creates an NVRAM entry for shim with
+                # the UKI path as LoadOptions so shim loads the UKI as its second stage.
+                csv_path = context.root / "efi" / "EFI" / "BOOT" / "BOOTX64.CSV"
+                uki_efi_path = f"\\EFI\\Linux\\{kver}.efi"
+                csv_content = f"shim{arch}.EFI,UKI,{uki_efi_path},\n"
+                with umask(~0o644):
+                    csv_path.write_bytes(csv_content.encode("utf-16-le"))
+                break
+            else:
+                if context.config.bootable == ConfigFeature.enabled:
+                    die("Bootloader=uki-prebuilt was set but no pre-built UKI was found in /usr/lib/modules")
         else:
+            # Without shim: place the UKI directly at the UEFI fallback path (BOOTX64.EFI)
+            # for direct firmware boot with no intermediate loader.
             boot_binary = context.root / efi_boot_binary(context)
-        with umask(~0o700):
-            boot_binary.parent.mkdir(parents=True, exist_ok=True)
-        for kver, kimg in gen_kernel_images(context):
-            log_step(f"Installing prebuilt distro UKI {kimg} to {boot_binary}")
-            copyfile2(kimg, boot_binary)
-            break
-        else:
-            if context.config.bootable == ConfigFeature.enabled:
-                die("Bootloader=uki-prebuilt was set but no pre-built UKI was found in /usr/lib/modules")
+            with umask(~0o700):
+                boot_binary.parent.mkdir(parents=True, exist_ok=True)
+            for kver, kimg in gen_kernel_images(context):
+                log_step(f"Installing prebuilt distro UKI {kimg} to {boot_binary}")
+                copyfile2(kimg, boot_binary)
+                break
+            else:
+                if context.config.bootable == ConfigFeature.enabled:
+                    die("Bootloader=uki-prebuilt was set but no pre-built UKI was found in /usr/lib/modules")
         return
 
     stub = systemd_stub_binary(context)

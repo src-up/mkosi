@@ -887,20 +887,49 @@ def install_shim(context: Context) -> None:
 
     arch = context.config.architecture.to_efi()
 
-    signed = [
-        f"usr/lib/shim/shim{arch}.efi.signed.latest",  # Ubuntu
-        f"usr/lib/shim/shim{arch}.efi.signed",  # Debian
-        f"boot/efi/EFI/*/shim{arch}.efi",  # Fedora/CentOS
-        "usr/share/efi/*/shim.efi",  # openSUSE
-    ]
+    # When consuming a prebuilt UKI, we use the fallback.efi (fbx64.efi) + CSV mechanism
+    # so shim can be directed to load the UKI instead of its default second stage (grubx64.efi).
+    # fallback.efi goes to BOOTX64.EFI (read by UEFI first), shim goes alongside it, and
+    # install_kernel writes BOOTX64.CSV pointing shim at the UKI.
+    if context.config.bootloader.is_prebuilt_uki():
+        fallback_signed = [
+            f"boot/efi/EFI/BOOT/fb{arch}.efi",   # Fedora/CentOS
+            f"usr/lib/shim/fb{arch}.efi",          # Debian/Ubuntu
+        ]
+        fallback_unsigned = [
+            f"boot/efi/EFI/BOOT/fb{arch}.efi",   # Fedora/CentOS
+            f"usr/lib/shim/fb{arch}.efi",          # Debian/Ubuntu
+        ]
+        find_and_install_shim_binary(context, "fallback", fallback_signed, fallback_unsigned, dst)
 
-    unsigned = [
-        f"usr/lib/shim/shim{arch}.efi",  # Debian/Ubuntu
-        f"usr/share/shim/*/*/shim{arch}.efi",  # Fedora/CentOS
-        f"usr/share/shim/shim{arch}.efi",  # Arch
-    ]
+        shim_dst = dst.parent / f"shim{arch}.EFI"
+        signed = [
+            f"usr/lib/shim/shim{arch}.efi.signed.latest",  # Ubuntu
+            f"usr/lib/shim/shim{arch}.efi.signed",  # Debian
+            f"boot/efi/EFI/*/shim{arch}.efi",  # Fedora/CentOS
+            "usr/share/efi/*/shim.efi",  # openSUSE
+        ]
+        unsigned = [
+            f"usr/lib/shim/shim{arch}.efi",  # Debian/Ubuntu
+            f"usr/share/shim/*/*/shim{arch}.efi",  # Fedora/CentOS
+            f"usr/share/shim/shim{arch}.efi",  # Arch
+        ]
+        find_and_install_shim_binary(context, "shim", signed, unsigned, shim_dst)
+    else:
+        signed = [
+            f"usr/lib/shim/shim{arch}.efi.signed.latest",  # Ubuntu
+            f"usr/lib/shim/shim{arch}.efi.signed",  # Debian
+            f"boot/efi/EFI/*/shim{arch}.efi",  # Fedora/CentOS
+            "usr/share/efi/*/shim.efi",  # openSUSE
+        ]
 
-    find_and_install_shim_binary(context, "shim", signed, unsigned, dst)
+        unsigned = [
+            f"usr/lib/shim/shim{arch}.efi",  # Debian/Ubuntu
+            f"usr/share/shim/*/*/shim{arch}.efi",  # Fedora/CentOS
+            f"usr/share/shim/shim{arch}.efi",  # Arch
+        ]
+
+        find_and_install_shim_binary(context, "shim", signed, unsigned, dst)
 
     signed = [
         f"usr/lib/shim/mm{arch}.efi.signed",  # Debian
