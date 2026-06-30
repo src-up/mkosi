@@ -680,15 +680,22 @@ def gen_kernel_images(context: Context) -> Iterator[tuple[str, Path]]:
         # scripts in the kernel source tree sometimes do weird stuff. But let's make sure we're not returning
         # UKIs as the UKI on Fedora is named vmlinuz-virt.efi. Also look for uncompressed images (vmlinux) as
         # some architectures ship those. Prefer vmlinuz if both are present.
-        for kimg in kver.glob("vmlinuz*"):
-            if KernelType.identify(context.config, kimg) != KernelType.uki:
-                yield kver.name, kimg
-                break
+        if context.config.bootloader.is_signed():
+            # when uki_signed is set, don't filter out .efi UKIs, yield them instead
+            for kimg in kver.glob("vmlinuz*"):
+                if KernelType.identify(context.config, kimg) == KernelType.uki:
+                    yield kver.name, kimg
+                    break
         else:
-            for kimg in kver.glob("vmlinux*"):
+            for kimg in kver.glob("vmlinuz*"):
                 if KernelType.identify(context.config, kimg) != KernelType.uki:
                     yield kver.name, kimg
                     break
+            else:
+                for kimg in kver.glob("vmlinux*"):
+                    if KernelType.identify(context.config, kimg) != KernelType.uki:
+                        yield kver.name, kimg
+                        break
 
 
 def install_systemd_boot(context: Context) -> None:
