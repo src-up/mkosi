@@ -2155,6 +2155,11 @@ def install_uki(
                 die(f"Couldn't find a signed UKI binary installed at /usr/lib/modules/{kver} in the image")
 
             return pcrs
+
+        # The prebuilt UKI is reused as-is, so cmdline (which carries the verity roothash
+        # computed from this build's own partitions, plus KernelCommandLine=) can't be baked
+        # into it directly like build_uki() does below. Carry it via a separate addon instead.
+        build_roothash_addon(context, cmdline)
     else:
         microcodes = finalize_microcode(context)
 
@@ -2243,6 +2248,32 @@ def build_uki_profiles(context: Context, cmdline: Sequence[str]) -> list[Path]:
         profiles += [output]
 
     return profiles
+
+
+def build_roothash_addon(context: Context, cmdline: Sequence[str]) -> None:
+    # For prebuilt UKIs (see install_uki()), we can't embed the verity roothash (or any other
+    # per-build cmdline bits such as KernelCommandLine=) directly into the UKI since we're
+    # reusing it as-is from the distribution. Instead, build a small signed UKI addon carrying
+    # that cmdline and drop it into the global loader/addons/ directory, which systemd-stub
+    # picks up and merges into *any* UKI it boots, regardless of how it was built.
+    if not cmdline:
+        return
+
+    stub = systemd_addon_stub_binary(context)
+    if not stub.exists():
+        die(
+            f"Verity roothash addon requested but addon stub not found at "
+            f"/{stub.relative_to(context.root)} in the image",
+            hint="Make sure systemd-boot-unsigned (or equivalent) is installed",
+        )
+
+    addon = context.root / "boot/loader/addons/mkosi-cmdline.addon.efi"
+
+    with umask(~0o700):
+        addon.parent.mkdir(parents=True, exist_ok=True)
+
+    with complete_step("Generating verity roothash addon for prebuilt UKI"):
+        run_ukify(context, stub, addon, cmdline=cmdline)
 
 
 def install_kernel(context: Context, partitions: Sequence[Partition]) -> None:

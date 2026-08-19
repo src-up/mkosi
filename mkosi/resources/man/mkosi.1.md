@@ -1128,6 +1128,12 @@ boolean argument: either `1`, `yes`, or `true` to enable, or `0`, `no`,
     be built locally. This is useful when combined with the runtime `Firmware=`
     option set to `custom` so that the local signing key is enrolled in UEFI db.
 
+    Since a pre-built UKI is reused as-is, **mkosi** cannot embed the verity
+    roothash or `KernelCommandLine=` directly into it. Instead, it builds a
+    small, separately signed UKI addon carrying that cmdline and installs it
+    to `/loader/addons/` on the ESP, which **systemd-stub** merges into the
+    pre-built UKI's cmdline at boot regardless of how it is loaded.
+
 `UnifiedKernelImageFormat=`, `--unified-kernel-image-format=`
 :   Takes a filename without any path components to specify the format that
     unified kernel images should be installed as. This may include both the

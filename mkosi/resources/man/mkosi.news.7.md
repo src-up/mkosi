@@ -7,6 +7,12 @@
 ## v27
 
 - Generate locales configured in `/etc/locale.gen`.
+- When reusing a prebuilt, distribution-provided UKI (`UnifiedKernelImages=signed`
+  or a signed `Bootloader=`), the verity roothash (`Verity=` in a `disk`
+  image's partition definitions) and `KernelCommandLine=` are now carried via
+  a small, separately signed UKI addon dropped into `/loader/addons/` on the
+  ESP, since they can no longer be baked directly into the UKI itself.
+  Previously these were silently ignored for prebuilt UKIs.
 
 ## v26
 
